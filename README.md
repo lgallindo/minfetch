@@ -1,0 +1,27 @@
+# minfetch: system fetch program focused on multi-threading
+
+I wanted an excuse to make something and I found neofetch's running times
+quite slow, so I tried reinplementing (some) of it under C with some threads 
+thrown in for faster performance. `time` tells me it runs in about 1~3ms
+
+**NOTE: this cannot be built outside of linux at the moment**
+
+### building:
+```
+git clone
+make
+```
+
+### installing:
+the default installation directory is ~/.local/bin
+```
+git clone
+make
+make install
+```
+
+### uninstalling:
+```
+make uninstall
+make clean
+```
