@@ -8,14 +8,13 @@ thrown in for faster performance. `time` tells me it runs in about 1~3ms
 
 ### building:
 ```
-git clone
+git clone https://github.com/rarafael/minfetch.git
 make
 ```
 
 ### installing:
-the default installation directory is ~/.local/bin
 ```
-git clone
+git clone https://github.com/rarafael/minfetch.git
 make
 make install
 ```
