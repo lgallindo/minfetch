@@ -1,6 +1,6 @@
 CC=cc
-CFLAGS=-Wall -Wextra -std=99 -Wpedantic -g -O2
-IFLAGS=-Wall -Wextra -std=99 -Wpedantic -O2
+CFLAGS=-Wall -Wextra -std=c99 -Wpedantic -g -O2
+IFLAGS=-Wall -Wextra -std=c99 -Wpedantic -O2
 BINARY=minfetch
 SRC=$(wildcard ./src/*.c)
 OBJ=$(SRC:.c=.o)
