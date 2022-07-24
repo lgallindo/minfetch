@@ -28,6 +28,17 @@ struct logo {
 #define ARCH_L8 "  /##.         .##\\   "
 #define ARCH_L9 " .#/             \\#.  "
 
+#define GNTO_L0 "   ###########         "
+#define GNTO_L1 "  #@@@@@@@@@@@@#       "
+#define GNTO_L2 " #@@@@@@@@@###@@@#     "
+#define GNTO_L3 "  #@@@@@@@#   #@@@#    "
+#define GNTO_L4 "   ####@@@@###@@@@@@#  "
+#define GNTO_L5 "       #@@@@@@@@@@@@@# "
+#define GNTO_L6 "      #@@@@@@@@@@@@@@#  "
+#define GNTO_L7 "    ##@@@@@@@@@@@@@#   "
+#define GNTO_L8 "   #@@@@@@@@@@@@@#     "
+#define GNTO_L9 "    ############       "
+
 #define GNRC_L0 "       /#######\\      "
 #define GNRC_L1 "      |#o#####o#|     "
 #define GNRC_L2 "       \\#PPPPP#/      "
@@ -37,6 +48,6 @@ struct logo {
 #define GNRC_L6 "   |__|888888888__|   "
 #define GNRC_L7 "   /  \\88888888/  /   "
 #define GNRC_L8 "   \\   \\888888/  /    "
-#define GNRC_L9 "    ;___######__/     "
+#define GNRC_L9 "    \\___######__/     "
 
 #endif

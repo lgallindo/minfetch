@@ -13,14 +13,13 @@ make
 ```
 
 ### installing:
+the default installation directory is under ~/.local/bin
 ```
 git clone https://github.com/rarafael/minfetch.git
-make
 make install
 ```
 
 ### uninstalling:
 ```
 make uninstall
-make clean
 ```

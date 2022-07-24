@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -5,24 +7,18 @@
 #include "logos.h"
 #include "common.h"
 
-_Bool
-isEqual(const char* string1, const char* string2)
-{
-    size_t len = MAX((strlen(string1)), strlen(string2));
-    for(size_t n = 0; n < len; n++) {
-        if(string1[n] != string2[n])
-            return 1;
-    }
-    return 0;
-}
-
 void*
 makeOs(void* input)
 {
     FILE* fp;
     if((fp = fopen("/etc/os-release", "r")) == NULL)
         ERR_NTCE("Failed opening /etc/os-release");
-    fscanf(fp, "NAME=\"%[^\"]", (char*)input);
+    char* buf = malloc(64 * sizeof(char));
+    size_t n = 64;
+    while(buf[0] != 'P')
+	getline(&buf, &n, fp);
+    sscanf(buf, "PRETTY_NAME=\"%[^\"]", (char*)input);
+    free(buf);
     fclose(fp);
     return input;
 }
@@ -45,6 +41,22 @@ compareOs(const char* os)
         ret.color = "\x1b[1;34m";
         return ret;
     }
+
+    else if(!strcmp(os, "Gentoo Linux")) {
+        ret.l0 = GNTO_L0;
+        ret.l1 = GNTO_L1;
+        ret.l2 = GNTO_L2;
+        ret.l3 = GNTO_L3;
+        ret.l4 = GNTO_L4;
+        ret.l5 = GNTO_L5;
+        ret.l6 = GNTO_L6;
+        ret.l7 = GNTO_L7;
+        ret.l8 = GNTO_L8;
+        ret.l9 = GNTO_L9;
+	ret.color = "\x1b[1;35m";
+	return ret;
+    }
+
     else {
         ret.l0 = GNRC_L0;
         ret.l1 = GNRC_L1;
