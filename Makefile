@@ -9,19 +9,19 @@ OBJ=$(SRC:.c=.o)
 all: $(BINARY)
 
 install: $(OBJ)
-	@$(CC) $(IFLAGS) $(SRC) -o $(BINARY)
-	@mkdir -p $(INSTALLDIR)
-	@cp $(BINARY) $(INSTALLDIR)
+	$(CC) $(IFLAGS) $(SRC) -o $(BINARY)
+	mkdir -p $(INSTALLDIR)
+	cp $(BINARY) $(INSTALLDIR)
 
 $(BINARY): $(OBJ)
-	@$(CC) $(CFLAGS) $(OBJ) -o $(BINARY)
+	$(CC) $(CFLAGS) $(OBJ) -o $(BINARY)
 
 clean: $(BINARY) $(OBJ)
-	@rm $(BINARY)
-	@rm $(OBJ)
+	rm $(BINARY)
+	rm $(OBJ)
 
 uninstall: clean
-	@rm $(INSTALLDIR)/$(BINARY)
+	rm $(INSTALLDIR)/$(BINARY)
 
 %.o: %.c
-	@$(CC) $(CFLAGS) -c $^ -o $@
+	$(CC) $(CFLAGS) -c $^ -o $@
