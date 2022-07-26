@@ -1,27 +1,22 @@
 CC=gcc
-CFLAGS=-Wall -Wextra -std=c99 -Wpedantic -g
-IFLAGS=-Wall -Wextra -std=c99 -Wpedantic
+CFLAGS=-Wall -Wextra -std=c99 -Wpedantic -g -O3
+IFLAGS=-Wall -Wextra -std=c99 -Wpedantic -O3
 INSTALLDIR=~/.local/bin
 BINARY=minfetch
-SRC=$(wildcard ./src/*.c)
-OBJ=$(SRC:.c=.o)
+SRC=./minfetch.c
 
 all: $(BINARY)
 
-install: $(OBJ)
+install: $(SRC)
 	$(CC) $(IFLAGS) $(SRC) -o $(BINARY)
 	mkdir -p $(INSTALLDIR)
 	cp $(BINARY) $(INSTALLDIR)
 
-$(BINARY): $(OBJ)
-	$(CC) $(CFLAGS) $(OBJ) -o $(BINARY)
+$(BINARY): $(SRC)
+	$(CC) $(CFLAGS) $(SRC) -o $(BINARY)
 
-clean: $(BINARY) $(OBJ)
+clean: $(BINARY)
 	rm $(BINARY)
-	rm $(OBJ)
 
 uninstall: clean
 	rm $(INSTALLDIR)/$(BINARY)
-
-%.o: %.c
-	$(CC) $(CFLAGS) -c $^ -o $@
