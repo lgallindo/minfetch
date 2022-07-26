@@ -59,6 +59,7 @@ typedef struct {
     char hostname[128];
     char uptime[BUFSIZ];
     char terminal[128];
+    long activemem;
     os_t* os;
 } pointers_t;
 
@@ -157,6 +158,22 @@ void* getTerminal(void* arg) {
     return arg;
 }
 
+void* getActiveMem(void* arg) {
+    FILE* fp;
+    if((fp = fopen("/proc/meminfo", "r")) == NULL)
+        ERR_NOTICE("Failed opening /proc/meminfo");
+    char* buf = malloc(BUFSIZ * sizeof(char));
+    char* buffer = malloc(BUFSIZ * sizeof(char));
+    size_t n = BUFSIZ;
+    while(buf[0] != 'A')
+        getline(&buf, &n, fp);
+    sscanf(buf, "Active: %[^k]", buffer);
+    pointers_t* ret = arg;
+    ret->activemem = atol(buffer);
+    free(buf); free(buffer); fclose(fp);
+    return arg;
+}
+
 void allocateLogo(os_t* os) {
     if(os->distro == ARCH_LINUX) {
         os->logo[0] = ARCH_L0;
@@ -210,7 +227,7 @@ void allocateLogo(os_t* os) {
 }
 
 int main(void) {
-    pthread_t threads[5] = {0};
+    pthread_t threads[6] = {0};
     pointers_t pointers = createPointers();
 
     pointers.username->uid = getuid();
@@ -229,12 +246,16 @@ int main(void) {
     } if(pthread_create(&threads[4], NULL, &getTerminal, pointers.terminal)) {
         ERR_CRASH("Failed creating thread[4]");
         freePointers(pointers);
+    } if(pthread_create(&threads[5], NULL, &getActiveMem, &pointers)) {
+        ERR_CRASH("Failed creating thread[5]");
+        freePointers(pointers);
     }
     pthread_join(threads[0], NULL); getUptime(pointers.uptime, pointers.system);
     pthread_join(threads[1], NULL); getDistro(pointers.os, pointers.os->name);
     pthread_join(threads[2], NULL); allocateLogo(pointers.os);
     pthread_join(threads[3], NULL);
     pthread_join(threads[4], NULL);
+    pthread_join(threads[5], NULL);
 
     char* colors = "\x1b[1;31m#####\x1b[1;32m#####\x1b[1;33m#####\x1b[1;34m#####\x1b[1;35m#####\
 \x1b[1;36m#####\x1b[0m";
@@ -246,8 +267,9 @@ int main(void) {
             pointers.os->name);
     printf("%s%sOperat. System%s: %s %s\n", pointers.os->logo[3], pointers.os->color, NOCOLOR,
             pointers.kernel->sysname, pointers.kernel->release);
-    printf("%s%sSystem Memory%s:  %luMiB\n", pointers.os->logo[4], pointers.os->color, NOCOLOR,
-            pointers.system->totalram / 1024 / 1024);
+    printf("%s%sSystem Memory%s:  %ldMiB / %luMiB\n", pointers.os->logo[4], pointers.os->color,
+            NOCOLOR, (pointers.activemem + ((pointers.system->sharedram +
+            pointers.system->bufferram) / 1024))/1024, pointers.system->totalram / 1024 / 1024);
     printf("%s%sCurrent Uptime%s: %s\n", pointers.os->logo[5], pointers.os->color, NOCOLOR,
             pointers.uptime);
     printf("%s%sShell%s:          %s\n", pointers.os->logo[6], pointers.os->color, NOCOLOR,
