@@ -33,7 +33,7 @@ struct thr_usernameInput {
 };
 
 enum distro {
-    GENERIC, ARCH_LINUX, GENTOO_LINUX
+    GENERIC, ARCH_LINUX, GENTOO_LINUX, DEBIAN_LINUX
 };
 
 typedef struct {
@@ -105,6 +105,8 @@ void getDistro(os_t* input, char* arg) {
         input->distro = ARCH_LINUX;
     else if(!strcmp(arg, "Gentoo Linux"))
         input->distro = GENTOO_LINUX;
+    else if(!strcmp(arg, "Debian Linux"))
+        input->distro = DEBIAN_LINUX;
     else
         input->distro = GENERIC;
 }
@@ -180,6 +182,18 @@ void allocateLogo(os_t* os) {
         os->logo[8] = GENTOO_L8;
         os->logo[9] = GENTOO_L9;
         strcpy(os->color, "\x1b[1;35m");
+    } else if(os->distro == DEBIAN_LINUX) {
+        os->logo[0] = DEBIAN_L0;
+        os->logo[1] = DEBIAN_L1;
+        os->logo[2] = DEBIAN_L2;
+        os->logo[3] = DEBIAN_L3;
+        os->logo[4] = DEBIAN_L4;
+        os->logo[5] = DEBIAN_L5;
+        os->logo[6] = DEBIAN_L6;
+        os->logo[7] = DEBIAN_L7;
+        os->logo[8] = DEBIAN_L8;
+        os->logo[9] = DEBIAN_L9;
+        strcpy(os->color, "\x1b[1;31m");
     } else {
         os->logo[0] = GENERIC_L0;
         os->logo[1] = GENERIC_L1;
