@@ -148,7 +148,8 @@ void* getKernel(void* arg) {
 void* getTerminal(void* arg) {
     char* buf = malloc(128 * sizeof(char));
     void* tmp = buf; /* temporary pointer to free later */
-    buf = getenv("TERM");
+    if((buf = getenv("TERMINAL")) == NULL)
+        buf = getenv("TERM");
     arg = strcpy(arg, buf);
     free(tmp);
     return arg;
