@@ -30,7 +30,7 @@
 struct thr_usernameInput {
     struct passwd* username;
     uid_t uid;
-};
+}; /* Struct to input into void* function */
 
 enum distro {
     GENERIC, ARCH_LINUX, GENTOO_LINUX, DEBIAN_LINUX
@@ -61,7 +61,7 @@ typedef struct {
     char terminal[128];
     long activemem;
     os_t* os;
-} pointers_t;
+} pointers_t; /* "Global" pointer struct */
 
 /* Function declarations */
 
@@ -72,14 +72,14 @@ pointers_t createPointers(void) {
     ret.kernel = malloc(sizeof(struct utsname));
     ret.os = malloc(sizeof(os_t));
     return ret;
-}
+} /* Allocate necessary pointers */
 
 void freePointers(pointers_t ptrs) {
     free(ptrs.system);
     free(ptrs.username);
     free(ptrs.os);
     free(ptrs.kernel);
-}
+} /* Free global structure */
 
 void* getSysInfo(void* arg) {
     sysinfo(arg);
@@ -88,14 +88,14 @@ void* getSysInfo(void* arg) {
 
 void* getOs(void* arg) {
     FILE* fp;
-    os_t* buffer = arg;
+    os_t* tmp = arg; /* Create this tmp pointer to interpret as struct */
     if((fp = fopen("/etc/os-release", "r")) == NULL)
         ERR_NOTICE("Failed opening /etc/os-release");
-    char* buf = malloc(64 * sizeof(char));
+    char* buf = malloc(64 * sizeof(char)); /* Line string */
     size_t n = 64;
-    while(buf[0] != 'P')
+    while(buf[0] != 'P') /* Go down the lines until first character is a 'P' */
         getline(&buf, &n, fp);
-    sscanf(buf, "PRETTY_NAME=\"%[^\"]", buffer->name);
+    sscanf(buf, "PRETTY_NAME=\"%[^\"]", tmp->name); /* Get distro name */
     free(buf); fclose(fp);
     return arg;
 }
@@ -113,6 +113,7 @@ void getDistro(os_t* input, char* arg) {
 }
 #endif /* __linux__ */
 
+/* Convert uptime in seconds to human-readable units */
 uptime_t makeUptime(long uptime) {
     uptime_t ret;
     ret.seconds = uptime;
@@ -122,28 +123,29 @@ uptime_t makeUptime(long uptime) {
     return ret;
 }
 
+/* Transform uptime into string */
 void getUptime(char* string, struct sysinfo* arg) {
     uptime_t uptime = makeUptime(arg->uptime);
-    if (arg->uptime < 60)
+    if (arg->uptime < 60) /* display time just in seconds */
         snprintf(string, BUFSIZ, "%lds", arg->uptime);
-    else if (arg->uptime < 3600)
+    else if (arg->uptime < 3600) /* display time in minutes */
         snprintf(string, BUFSIZ, "%ldm", uptime.minutes);
-    else if (uptime.days == 0)
+    else if (uptime.days == 0) /* display time in hours */
         snprintf(string, BUFSIZ, "%ldh %ldm",
                  uptime.hours, uptime.minutes);
-    else
+    else /* display time in days */
         snprintf(string, BUFSIZ, "%dd %ldh %ldm",
                  uptime.days, uptime.hours, uptime.minutes);
 }
 
 void* getUsername(void* arg) {
-    struct thr_usernameInput* buf = arg;
+    struct thr_usernameInput* buf = arg; /* tmp pointer to use as struct */
     buf->username = getpwuid(buf->uid);
     return arg;
 }
 
 void* getKernel(void* arg) {
-    struct utsname* buf = arg;
+    struct utsname* buf = arg; /* tmp pointer to use as struct */
     uname(buf);
     return arg;
 }
@@ -151,8 +153,8 @@ void* getKernel(void* arg) {
 void* getTerminal(void* arg) {
     char* buf = malloc(128 * sizeof(char));
     void* tmp = buf; /* temporary pointer to free later */
-    if((buf = getenv("TERMINAL")) == NULL)
-        buf = getenv("TERM");
+    if((buf = getenv("TERMINAL")) == NULL) /* get visual terminal, else use */
+        buf = getenv("TERM");              /* TERM enviroment variable */
     arg = strcpy(arg, buf);
     free(tmp);
     return arg;
@@ -163,13 +165,13 @@ void* getActiveMem(void* arg) {
     if((fp = fopen("/proc/meminfo", "r")) == NULL)
         ERR_NOTICE("Failed opening /proc/meminfo");
     char* buf = malloc(BUFSIZ * sizeof(char));
-    char* buffer = malloc(BUFSIZ * sizeof(char));
+    char* buffer = malloc(BUFSIZ * sizeof(char)); /* active mem string */
     size_t n = BUFSIZ;
-    while(buf[0] != 'A')
+    while(buf[0] != 'A') /* Go down the lines until first charater is 'A' */
         getline(&buf, &n, fp);
-    sscanf(buf, "Active: %[^k]", buffer);
-    pointers_t* ret = arg;
-    ret->activemem = atol(buffer);
+    sscanf(buf, "Active: %[^k]", buffer); /* Get active mem */
+    pointers_t* ret = arg; /* tmp pointer to use as struct */
+    ret->activemem = atol(buffer); /* transform string memory into long int */
     free(buf); free(buffer); fclose(fp);
     return arg;
 }
@@ -228,9 +230,9 @@ void allocateLogo(os_t* os) {
 
 int main(void) {
     pthread_t threads[6] = {0};
-    pointers_t pointers = createPointers();
+    pointers_t pointers = createPointers(); /* allocate global structure */
 
-    pointers.username->uid = getuid();
+    pointers.username->uid = getuid(); /* get main proccess UID */
     if(pthread_create(&threads[0], NULL, &getSysInfo, pointers.system)) {
         ERR_CRASH("Failed creating thread[0]");
         freePointers(pointers);
@@ -259,6 +261,7 @@ int main(void) {
 
     char* colors = "\x1b[1;31m#####\x1b[1;32m#####\x1b[1;33m#####\x1b[1;34m#####\x1b[1;35m#####\
 \x1b[1;36m#####\x1b[0m";
+    /* Print out info: */
     printf("%s%s     %s%s@%s%s\n",
             pointers.os->logo[0], pointers.os->color, pointers.username->username->pw_name,
             NOCOLOR, pointers.os->color, pointers.kernel->nodename);
