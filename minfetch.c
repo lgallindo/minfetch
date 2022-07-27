@@ -59,12 +59,13 @@ typedef struct {
     char hostname[128];
     char uptime[BUFSIZ];
     char terminal[128];
-    long activemem;
+    long availableram;
     os_t* os;
 } pointers_t; /* "Global" pointer struct */
 
 /* Function declarations */
 
+/* Allocate "global" pointer structure */
 pointers_t createPointers(void) {
     pointers_t ret;
     ret.system = malloc(sizeof(struct sysinfo));
@@ -72,35 +73,42 @@ pointers_t createPointers(void) {
     ret.kernel = malloc(sizeof(struct utsname));
     ret.os = malloc(sizeof(os_t));
     return ret;
-} /* Allocate necessary pointers */
+}
 
+/* Free "global" pointer structure */
 void freePointers(pointers_t ptrs) {
     free(ptrs.system);
     free(ptrs.username);
     free(ptrs.os);
     free(ptrs.kernel);
-} /* Free global structure */
+}
 
+/* Call sysinfo() function */
 void* getSysInfo(void* arg) {
     sysinfo(arg);
     return arg;
 }
 
+/* Get OS from /etc/os-release */
 void* getOs(void* arg) {
     FILE* fp;
     os_t* tmp = arg; /* Create this tmp pointer to interpret as struct */
-    if((fp = fopen("/etc/os-release", "r")) == NULL)
-        ERR_NOTICE("Failed opening /etc/os-release");
     char* buf = malloc(64 * sizeof(char)); /* Line string */
     size_t n = 64;
+
+    if((fp = fopen("/etc/os-release", "r")) == NULL)
+        ERR_NOTICE("Failed opening /etc/os-release");
+
     while(buf[0] != 'P') /* Go down the lines until first character is a 'P' */
         getline(&buf, &n, fp);
     sscanf(buf, "PRETTY_NAME=\"%[^\"]", tmp->name); /* Get distro name */
     free(buf); fclose(fp);
+
     return arg;
 }
 
 #ifdef __linux__
+/* Compare OS string to linux distros and assign one */
 void getDistro(os_t* input, char* arg) {
     if(!strcmp(arg, "Arch Linux"))
         input->distro = ARCH_LINUX;
@@ -138,44 +146,54 @@ void getUptime(char* string, struct sysinfo* arg) {
                  uptime.days, uptime.hours, uptime.minutes);
 }
 
+/* Get username info from main process UID */
 void* getUsername(void* arg) {
     struct thr_usernameInput* buf = arg; /* tmp pointer to use as struct */
     buf->username = getpwuid(buf->uid);
     return arg;
 }
 
+/* Get kernel information from uname() function */
 void* getKernel(void* arg) {
     struct utsname* buf = arg; /* tmp pointer to use as struct */
     uname(buf);
     return arg;
 }
 
+/* Get terminal information from enviroment variables */
 void* getTerminal(void* arg) {
     char* buf = malloc(128 * sizeof(char));
     void* tmp = buf; /* temporary pointer to free later */
+
     if((buf = getenv("TERMINAL")) == NULL) /* get visual terminal, else use */
         buf = getenv("TERM");              /* TERM enviroment variable */
     arg = strcpy(arg, buf);
     free(tmp);
+
     return arg;
 }
 
-void* getActiveMem(void* arg) {
+/* Get available use memory from /proc/meminfo */
+void* getAvailableRam(void* arg) {
     FILE* fp;
-    if((fp = fopen("/proc/meminfo", "r")) == NULL)
-        ERR_NOTICE("Failed opening /proc/meminfo");
     char* buf = malloc(BUFSIZ * sizeof(char));
     char* buffer = malloc(BUFSIZ * sizeof(char)); /* active mem string */
     size_t n = BUFSIZ;
-    while(buf[0] != 'A') /* Go down the lines until first charater is 'A' */
+
+    if((fp = fopen("/proc/meminfo", "r")) == NULL)
+        ERR_NOTICE("Failed opening /proc/meminfo");
+
+    while(buf[3] != 'A') /* Go down the lines until fourth charater is 'A' */
         getline(&buf, &n, fp);
-    sscanf(buf, "Active: %[^k]", buffer); /* Get active mem */
+    sscanf(buf, "MemAvailable: %[^k]", buffer); /* Get active mem */
     pointers_t* ret = arg; /* tmp pointer to use as struct */
-    ret->activemem = atol(buffer); /* transform string memory into long int */
+    ret->availableram = atol(buffer); /* transform string memory into long int */
     free(buf); free(buffer); fclose(fp);
+
     return arg;
 }
 
+/* Allocate logo struct with appropriate information */
 void allocateLogo(os_t* os) {
     if(os->distro == ARCH_LINUX) {
         os->logo[0] = ARCH_L0;
@@ -189,7 +207,9 @@ void allocateLogo(os_t* os) {
         os->logo[8] = ARCH_L8;
         os->logo[9] = ARCH_L9;
         strcpy(os->color, "\x1b[1;96m");
-    } else if(os->distro == GENTOO_LINUX) {
+    }
+
+    else if(os->distro == GENTOO_LINUX) {
         os->logo[0] = GENTOO_L0;
         os->logo[1] = GENTOO_L1;
         os->logo[2] = GENTOO_L2;
@@ -201,7 +221,9 @@ void allocateLogo(os_t* os) {
         os->logo[8] = GENTOO_L8;
         os->logo[9] = GENTOO_L9;
         strcpy(os->color, "\x1b[1;35m");
-    } else if(os->distro == DEBIAN_LINUX) {
+    }
+
+    else if(os->distro == DEBIAN_LINUX) {
         os->logo[0] = DEBIAN_L0;
         os->logo[1] = DEBIAN_L1;
         os->logo[2] = DEBIAN_L2;
@@ -213,7 +235,9 @@ void allocateLogo(os_t* os) {
         os->logo[8] = DEBIAN_L8;
         os->logo[9] = DEBIAN_L9;
         strcpy(os->color, "\x1b[1;31m");
-    } else {
+    }
+
+    else {
         os->logo[0] = GENERIC_L0;
         os->logo[1] = GENERIC_L1;
         os->logo[2] = GENERIC_L2;
@@ -242,7 +266,7 @@ int main(void) {
     } if(pthread_create(&threads[2], NULL, &getUsername, pointers.username)) {
         ERR_CRASH("Failed creating thread[2]");
         freePointers(pointers);
-    } if(pthread_create(&threads[3], NULL, &getActiveMem, &pointers)) {
+    } if(pthread_create(&threads[3], NULL, &getAvailableRam, &pointers)) {
         ERR_CRASH("Failed creating thread[3]");
         freePointers(pointers);
     } if(pthread_create(&threads[4], NULL, &getSysInfo, pointers.system)) {
@@ -258,6 +282,9 @@ int main(void) {
 
     char* colors = "\x1b[1;31m#####\x1b[1;32m#####\x1b[1;33m#####\x1b[1;34m#####\x1b[1;35m#####\
 \x1b[1;36m#####\x1b[0m";
+
+    printf("%ld\n", pointers.system->totalram);
+
     /* Print out info: */
     printf("%s%s     %s%s@%s%s\n",
             pointers.os->logo[0], pointers.os->color, pointers.username->username->pw_name,
@@ -270,8 +297,8 @@ int main(void) {
     pthread_join(threads[3], NULL);
     pthread_join(threads[4], NULL);
     printf("%s%sSystem Memory%s:  %ldMiB / %luMiB\n", pointers.os->logo[4], pointers.os->color,
-            NOCOLOR, (pointers.activemem + ((pointers.system->sharedram +
-            pointers.system->bufferram) / 1024))/1024, pointers.system->totalram / 1024 / 1024);
+            NOCOLOR, ((pointers.system->totalram / 1024) - (pointers.availableram +
+            (pointers.system->bufferram / 1024))) / 1024, pointers.system->totalram / 1024 / 1024);
     printf("%s%sCurrent Uptime%s: %s\n", pointers.os->logo[5], pointers.os->color, NOCOLOR,
             pointers.uptime);
     printf("%s%sShell%s:          %s\n", pointers.os->logo[6], pointers.os->color, NOCOLOR,
