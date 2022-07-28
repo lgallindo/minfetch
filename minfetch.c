@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-
 #ifndef __linux__
 #   error "Cannot compile outside of Linux"
 #endif
@@ -59,6 +57,7 @@ typedef struct {
     char hostname[128];
     char uptime[BUFSIZ];
     char terminal[128];
+    char cpu[128];
     long availableram;
     os_t* os;
 } pointers_t; /* "Global" pointer struct */
@@ -93,14 +92,13 @@ void* getSysInfo(void* arg) {
 void* getOs(void* arg) {
     FILE* fp;
     os_t* tmp = arg; /* Create this tmp pointer to interpret as struct */
-    char* buf = malloc(64 * sizeof(char)); /* Line string */
-    size_t n = 64;
+    char* buf = calloc(64, sizeof(char)); /* Line string */
 
     if((fp = fopen("/etc/os-release", "r")) == NULL)
         ERR_NOTICE("Failed opening /etc/os-release");
 
     while(buf[0] != 'P') /* Go down the lines until first character is a 'P' */
-        getline(&buf, &n, fp);
+        buf = fgets(buf, 64, fp);
     sscanf(buf, "PRETTY_NAME=\"%[^\"]", tmp->name); /* Get distro name */
     free(buf); fclose(fp);
 
@@ -176,15 +174,14 @@ void* getTerminal(void* arg) {
 /* Get available use memory from /proc/meminfo */
 void* getAvailableRam(void* arg) {
     FILE* fp;
-    char* buf = malloc(BUFSIZ * sizeof(char));
-    char* buffer = malloc(BUFSIZ * sizeof(char)); /* active mem string */
-    size_t n = BUFSIZ;
+    char* buf = calloc(BUFSIZ, sizeof(char));
+    char* buffer = calloc(BUFSIZ, sizeof(char)); /* active mem string */
 
     if((fp = fopen("/proc/meminfo", "r")) == NULL)
         ERR_NOTICE("Failed opening /proc/meminfo");
 
     while(buf[3] != 'A') /* Go down the lines until fourth charater is 'A' */
-        getline(&buf, &n, fp);
+        buf = fgets(buf, BUFSIZ, fp);
     sscanf(buf, "MemAvailable: %[^k]", buffer); /* Get active mem */
     pointers_t* ret = arg; /* tmp pointer to use as struct */
     ret->availableram = atol(buffer); /* transform string memory into long int */
