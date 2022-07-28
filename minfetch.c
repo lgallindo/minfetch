@@ -283,8 +283,6 @@ int main(void) {
     char* colors = "\x1b[1;31m#####\x1b[1;32m#####\x1b[1;33m#####\x1b[1;34m#####\x1b[1;35m#####\
 \x1b[1;36m#####\x1b[0m";
 
-    printf("%ld\n", pointers.system->totalram);
-
     /* Print out info: */
     printf("%s%s     %s%s@%s%s\n",
             pointers.os->logo[0], pointers.os->color, pointers.username->username->pw_name,
