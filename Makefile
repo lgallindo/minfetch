@@ -1,6 +1,6 @@
 CC=gcc
-CFLAGS=-Wall -Wextra -std=c99 -Wpedantic -g -O3 -Wno-unused-result
-IFLAGS=-Wall -Wextra -std=c99 -Wpedantic -O3 -Wno-unused-result
+CFLAGS=-Wall -Wextra -std=c99 -Wpedantic -g -O3 -Wno-unused-result -Wno-discarded-qualifiers
+IFLAGS=-Wall -Wextra -std=c99 -Wpedantic -O3 -Wno-unused-result -Wno-discarded-qualifiers
 INSTALLDIR=~/.local/bin
 BINARY=minfetch
 SRC=./minfetch.c

@@ -208,60 +208,34 @@ void* getAvailableRam(void* arg) {
 
 /* Allocate logo struct with appropriate information */
 void allocateLogo(os_t* os) {
-    if(os->distro == ARCH_LINUX) {
-        os->logo[0] = ARCH_L0;
-        os->logo[1] = ARCH_L1;
-        os->logo[2] = ARCH_L2;
-        os->logo[3] = ARCH_L3;
-        os->logo[4] = ARCH_L4;
-        os->logo[5] = ARCH_L5;
-        os->logo[6] = ARCH_L6;
-        os->logo[7] = ARCH_L7;
-        os->logo[8] = ARCH_L8;
-        os->logo[9] = ARCH_L9;
-        strcpy(os->color, "\x1b[1;96m");
-    }
+    switch(os->distro) {
+        case ARCH_LINUX: {
+            for(int i = 0; i < 10; i++) {
+                os->logo[i] = ARCH_L[i];
+            }
+            strcpy(os->color, "\x1b[1;96m");
+        } break;
 
-    else if(os->distro == GENTOO_LINUX) {
-        os->logo[0] = GENTOO_L0;
-        os->logo[1] = GENTOO_L1;
-        os->logo[2] = GENTOO_L2;
-        os->logo[3] = GENTOO_L3;
-        os->logo[4] = GENTOO_L4;
-        os->logo[5] = GENTOO_L5;
-        os->logo[6] = GENTOO_L6;
-        os->logo[7] = GENTOO_L7;
-        os->logo[8] = GENTOO_L8;
-        os->logo[9] = GENTOO_L9;
-        strcpy(os->color, "\x1b[1;35m");
-    }
+        case GENTOO_LINUX: {
+            for(int i = 0; i < 10; i++) {
+                os->logo[i] = GENTOO_L[i];
+            }
+            strcpy(os->color, "\x1b[1;35m");
+        } break;
 
-    else if(os->distro == DEBIAN_LINUX) {
-        os->logo[0] = DEBIAN_L0;
-        os->logo[1] = DEBIAN_L1;
-        os->logo[2] = DEBIAN_L2;
-        os->logo[3] = DEBIAN_L3;
-        os->logo[4] = DEBIAN_L4;
-        os->logo[5] = DEBIAN_L5;
-        os->logo[6] = DEBIAN_L6;
-        os->logo[7] = DEBIAN_L7;
-        os->logo[8] = DEBIAN_L8;
-        os->logo[9] = DEBIAN_L9;
-        strcpy(os->color, "\x1b[1;31m");
-    }
+        case DEBIAN_LINUX: {
+            for(int i = 0; i < 10; i++) {
+                os->logo[i] = DEBIAN_L[i];
+            }
+            strcpy(os->color, "\x1b[1;31m");
+        } break;
 
-    else {
-        os->logo[0] = GENERIC_L0;
-        os->logo[1] = GENERIC_L1;
-        os->logo[2] = GENERIC_L2;
-        os->logo[3] = GENERIC_L3;
-        os->logo[4] = GENERIC_L4;
-        os->logo[5] = GENERIC_L5;
-        os->logo[6] = GENERIC_L6;
-        os->logo[7] = GENERIC_L7;
-        os->logo[8] = GENERIC_L8;
-        os->logo[9] = GENERIC_L9;
-        strcpy(os->color, "\x1b[1;32m");
+        default: {
+            for(int i = 0; i < 10; i++) {
+                os->logo[i] = GENERIC_L[i];
+            }
+            strcpy(os->color, "\x1b[1;32m");
+        }
     }
 }
 
