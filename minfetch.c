@@ -64,13 +64,29 @@ typedef struct {
 
 /* Function declarations */
 
+/* Crash with failed memory allocation */
+void* xmalloc(size_t len) {
+    void* ret = malloc(len);
+    if(ret == NULL)
+        ERR_CRASH("Failed with memory allocation");
+    return ret;
+}
+
+/* Crash with failed memory allocation */
+void* xcalloc(size_t len, size_t size) {
+    void* ret = calloc(len, size);
+    if(ret == NULL)
+        ERR_CRASH("Failed with memory allocation");
+    return ret;
+}
+
 /* Allocate "global" pointer structure */
 pointers_t createPointers(void) {
     pointers_t ret;
-    ret.system = malloc(sizeof(struct sysinfo));
-    ret.username = malloc(sizeof(struct thr_usernameInput));
-    ret.kernel = malloc(sizeof(struct utsname));
-    ret.os = malloc(sizeof(os_t));
+    ret.system = xmalloc(sizeof(struct sysinfo));
+    ret.username = xmalloc(sizeof(struct thr_usernameInput));
+    ret.kernel = xmalloc(sizeof(struct utsname));
+    ret.os = xmalloc(sizeof(os_t));
     return ret;
 }
 
@@ -92,7 +108,7 @@ void* getSysInfo(void* arg) {
 void* getOs(void* arg) {
     FILE* fp;
     os_t* tmp = arg; /* Create this tmp pointer to interpret as struct */
-    char* buf = calloc(64, sizeof(char)); /* Line string */
+    char* buf = xcalloc(64, sizeof(char)); /* Line string */
 
     if((fp = fopen("/etc/os-release", "r")) == NULL)
         ERR_NOTICE("Failed opening /etc/os-release");
@@ -160,7 +176,7 @@ void* getKernel(void* arg) {
 
 /* Get terminal information from enviroment variables */
 void* getTerminal(void* arg) {
-    char* buf = malloc(128 * sizeof(char));
+    char* buf = xcalloc(128, sizeof(char));
     void* tmp = buf; /* temporary pointer to free later */
 
     if((buf = getenv("TERMINAL")) == NULL) /* get visual terminal, else use */
@@ -174,8 +190,8 @@ void* getTerminal(void* arg) {
 /* Get available use memory from /proc/meminfo */
 void* getAvailableRam(void* arg) {
     FILE* fp;
-    char* buf = calloc(BUFSIZ, sizeof(char));
-    char* buffer = calloc(BUFSIZ, sizeof(char)); /* active mem string */
+    char* buf = xcalloc(BUFSIZ, sizeof(char));
+    char* buffer = xcalloc(BUFSIZ, sizeof(char)); /* active mem string */
 
     if((fp = fopen("/proc/meminfo", "r")) == NULL)
         ERR_NOTICE("Failed opening /proc/meminfo");
