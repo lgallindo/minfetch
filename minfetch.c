@@ -240,7 +240,7 @@ void allocateLogo(os_t* os) {
 }
 
 int main(void) {
-    pthread_t threads[6] = {0};
+    pthread_t threads[3] = {0};
     pointers_t pointers = createPointers(); /* allocate global structure */
 
     pointers.username->uid = getuid(); /* get main proccess UID */
@@ -250,22 +250,29 @@ int main(void) {
     } if(pthread_create(&threads[1], NULL, &getOs, pointers.os)) {
         ERR_CRASH("Failed creating thread[1]");
         freePointers(pointers);
-    } if(pthread_create(&threads[2], NULL, &getUsername, pointers.username)) {
+    }
+    if(pthread_create(&threads[2], NULL, &getUsername, pointers.username)) {
         ERR_CRASH("Failed creating thread[2]");
         freePointers(pointers);
-    } if(pthread_create(&threads[3], NULL, &getAvailableRam, &pointers)) {
+    }
+    pthread_join(threads[0], NULL); 
+    if(pthread_create(&threads[0], NULL, &getAvailableRam, &pointers)) {
         ERR_CRASH("Failed creating thread[3]");
         freePointers(pointers);
-    } if(pthread_create(&threads[4], NULL, &getSysInfo, pointers.system)) {
+    }
+    pthread_join(threads[1], NULL); 
+    if(pthread_create(&threads[1], NULL, &getSysInfo, pointers.system)) {
         ERR_CRASH("Failed creating thread[4]");
         freePointers(pointers);
-    } if(pthread_create(&threads[5], NULL, &getTerminal, pointers.terminal)) {
+    }
+    pthread_join(threads[2], NULL); 
+    if(pthread_create(&threads[2], NULL, &getTerminal, pointers.terminal)) {
         ERR_CRASH("Failed creating thread[5]");
         freePointers(pointers);
     }
-    pthread_join(threads[0], NULL); getUptime(pointers.uptime, pointers.system);
-    pthread_join(threads[1], NULL); getDistro(pointers.os, pointers.os->name);
-    pthread_join(threads[2], NULL); allocateLogo(pointers.os);
+    getUptime(pointers.uptime, pointers.system);
+    getDistro(pointers.os, pointers.os->name);
+    allocateLogo(pointers.os);
 
     char* colors = "\x1b[1;31m#####\x1b[1;32m#####\x1b[1;33m#####\x1b[1;34m#####\x1b[1;35m#####\
 \x1b[1;36m#####\x1b[0m";
@@ -279,8 +286,8 @@ int main(void) {
             pointers.os->name);
     printf("%s%sOperat. System%s: %s %s\n", pointers.os->logo[3], pointers.os->color, NOCOLOR,
             pointers.kernel->sysname, pointers.kernel->release);
-    pthread_join(threads[3], NULL);
-    pthread_join(threads[4], NULL);
+    pthread_join(threads[0], NULL);
+    pthread_join(threads[1], NULL);
     printf("%s%sSystem Memory%s:  %ldMiB / %luMiB\n", pointers.os->logo[4], pointers.os->color,
             NOCOLOR, ((pointers.system->totalram / 1024) - (pointers.availableram +
             (pointers.system->bufferram / 1024))) / 1024, pointers.system->totalram / 1024 / 1024);
@@ -288,7 +295,7 @@ int main(void) {
             pointers.uptime);
     printf("%s%sShell%s:          %s\n", pointers.os->logo[6], pointers.os->color, NOCOLOR,
             pointers.username->username->pw_shell);
-    pthread_join(threads[5], NULL);
+    pthread_join(threads[2], NULL);
     printf("%s%sTerminal%s:       %s\n", pointers.os->logo[7], pointers.os->color, NOCOLOR,
             pointers.terminal);
     printf("%s%s\n", pointers.os->logo[8], colors);
