@@ -57,7 +57,7 @@ typedef struct {
     char hostname[128];
     char uptime[BUFSIZ];
     char terminal[128];
-    char cpu[128];
+    char editor[128];
     long availableram;
     os_t* os;
 } pointers_t; /* "Global" pointer struct */
@@ -206,6 +206,19 @@ void* getAvailableRam(void* arg) {
     return arg;
 }
 
+/* Get text editor */
+void* getEditor(void* arg) {
+    char* buf = xcalloc(128, sizeof(char));
+    void* tmp = buf; /* temporary pointer to free later */
+
+    if((buf = getenv("VISUAL")) == NULL)   /* get visual editor, else use */
+        buf = getenv("EDITOR");            /* EDITOR enviroment variable */
+    arg = strcpy(arg, buf);
+    free(tmp);
+
+    return arg;
+}
+
 /* Allocate logo struct with appropriate information */
 void allocateLogo(os_t* os) {
     switch(os->distro) {
@@ -240,7 +253,7 @@ void allocateLogo(os_t* os) {
 }
 
 int main(void) {
-    pthread_t threads[3] = {0};
+    pthread_t threads[4] = {0};
     pointers_t pointers = createPointers(); /* allocate global structure */
 
     pointers.username->uid = getuid(); /* get main proccess UID */
@@ -267,6 +280,9 @@ int main(void) {
     }
     pthread_join(threads[2], NULL); 
     if(pthread_create(&threads[2], NULL, &getTerminal, pointers.terminal)) {
+        ERR_CRASH("Failed creating thread[5]");
+        freePointers(pointers);
+    } if(pthread_create(&threads[3], NULL, &getEditor, pointers.editor)) {
         ERR_CRASH("Failed creating thread[5]");
         freePointers(pointers);
     }
@@ -298,7 +314,9 @@ int main(void) {
     pthread_join(threads[2], NULL);
     printf("%s%sTerminal%s:       %s\n", pointers.os->logo[7], pointers.os->color, NOCOLOR,
             pointers.terminal);
-    printf("%s%s\n", pointers.os->logo[8], colors);
+    pthread_join(threads[3], NULL);
+    printf("%s%sEditor%s:         %s\n", pointers.os->logo[8], pointers.os->color, NOCOLOR,
+            pointers.editor);
     printf("%s%s\n", pointers.os->logo[9], colors);
 
     freePointers(pointers);
