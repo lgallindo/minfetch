@@ -10,6 +10,7 @@
 
 #ifdef __linux__
 #   include <pwd.h>
+#   include <fcntl.h>
 #   include <sys/sysinfo.h>
 #   include <sys/types.h>
 #   include <sys/utsname.h>
@@ -169,8 +170,7 @@ void* getUsername(void* arg) {
 
 /* Get kernel information from uname() function */
 void* getKernel(void* arg) {
-    struct utsname* buf = arg; /* tmp pointer to use as struct */
-    uname(buf);
+    uname((struct utsname*)arg);
     return arg;
 }
 
@@ -268,17 +268,17 @@ int main(void) {
         ERR_CRASH("Failed creating thread[2]");
         freePointers(pointers);
     }
-    pthread_join(threads[0], NULL); 
+    pthread_join(threads[0], NULL);
     if(pthread_create(&threads[0], NULL, &getAvailableRam, &pointers)) {
         ERR_CRASH("Failed creating thread[3]");
         freePointers(pointers);
     }
-    pthread_join(threads[1], NULL); 
+    pthread_join(threads[1], NULL);
     if(pthread_create(&threads[1], NULL, &getSysInfo, pointers.system)) {
         ERR_CRASH("Failed creating thread[4]");
         freePointers(pointers);
     }
-    pthread_join(threads[2], NULL); 
+    pthread_join(threads[2], NULL);
     if(pthread_create(&threads[2], NULL, &getTerminal, pointers.terminal)) {
         ERR_CRASH("Failed creating thread[5]");
         freePointers(pointers);
