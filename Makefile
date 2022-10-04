@@ -3,7 +3,7 @@ CFLAGS=-Wall -Wextra -std=c99 -g -O3
 IFLAGS=-Wall -Wextra -std=c99 -O3
 INSTALLDIR=~/.local/bin
 BINARY=minfetch
-SRC=./refactor.c
+SRC=./minfetch.c
 
 all: $(BINARY)
 
