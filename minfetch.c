@@ -1,144 +1,181 @@
-#ifndef __linux__
-#   error "Cannot compile outside of Linux"
+#if !(defined(linux) || defined(__linux__))
+#   error Not available outside of Linux
 #endif
+
+#define COLORS "\x1b[1;31m#####\x1b[1;32m#####\x1b[1;33m#####"\
+               "\x1b[1;34m#####\x1b[1;35m#####\x1b[1;36m#####\x1b[0m"
+#define DEFAULT_STRING_SIZE 128
+#define ABORT(...) do {                             \
+                   fprintf(stderr, __VA_ARGS__);    \
+                   pointersFree();                  \
+                   exit(EXIT_FAILURE); } while(1);
+#define NOCOLOR "\x1b[1;0m"
+#define HEADER(A) pointers->distro->logo[A], pointers->distro->color, NOCOLOR
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <string.h>
+#include <errno.h>
 
-#ifdef __linux__
-#   include <pwd.h>
-#   include <fcntl.h>
-#   include <sys/sysinfo.h>
-#   include <sys/types.h>
-#   include <sys/utsname.h>
-#endif
+#include <pwd.h>
+#include <fcntl.h>
+#include <sys/sysinfo.h>
+#include <sys/types.h>
+#include <sys/utsname.h>
 
 #include "logos.h"
 
-#define ERR_CRASH(A) do {\
-    perror(A); exit(EXIT_FAILURE);\
-    } while(0);
-#define ERR_NOTICE(A) do {\
-    perror(A); } while(0);
-
-/* Enum & Struct declarations */
-
-struct thr_usernameInput {
-    struct passwd* username;
-    uid_t uid;
-}; /* Struct to input into void* function */
-
-enum distro {
-    GENERIC, ARCH_LINUX, GENTOO_LINUX, DEBIAN_LINUX
-};
-
-typedef struct {
-    char* logo[12];
-    char color[32];
-    char name[32];
-#ifdef __linux__
-    enum distro distro;
-#endif
-} os_t;
-
-typedef struct {
+struct uptime {
     long seconds;
     long minutes;
     long hours;
     int days;
-} uptime_t;
+};
 
-typedef struct {
-    struct sysinfo* system;
-    struct thr_usernameInput* username;
-    struct utsname* kernel;
-    char hostname[128];
-    char uptime[BUFSIZ];
-    char terminal[128];
-    char editor[128];
+struct distro {
+    char* logo[DEFAULT_STRING_SIZE];
+    char color[DEFAULT_STRING_SIZE];
+    char name[DEFAULT_STRING_SIZE];
+    enum {
+        GENERIC, ARCH_LINUX, GENTOO_LINUX, DEBIAN_LINUX,
+    } type;
+};
+
+struct system {
+    struct sysinfo *sysinfo;
+    struct passwd  *passwd;
+    struct utsname *utsname;
+    struct distro  *distro;
+    char hostname[DEFAULT_STRING_SIZE];
+    char uptime[DEFAULT_STRING_SIZE];
+    char terminal[DEFAULT_STRING_SIZE];
+    char editor[DEFAULT_STRING_SIZE];
     long availableram;
-    os_t* os;
-} pointers_t; /* "Global" pointer struct */
+    uid_t uid;
+};
 
-/* Function declarations */
+static struct system *pointers = NULL;
+static void *passwd_tmp_pointer = NULL;
 
-/* Crash with failed memory allocation */
-void* xmalloc(size_t len) {
-    void* ret = malloc(len);
-    if(ret == NULL)
-        ERR_CRASH("Failed with memory allocation");
+static void *xcalloc(size_t size, size_t len)
+{
+    void *ret = calloc(size, len);
+    if(ret == NULL) {
+        fprintf(stderr, "minfetch: couldn't allocate memory: %s\n",
+                strerror(errno));
+        exit(EXIT_FAILURE);
+    }
     return ret;
 }
 
-/* Crash with failed memory allocation */
-void* xcalloc(size_t len, size_t size) {
-    void* ret = calloc(len, size);
-    if(ret == NULL)
-        ERR_CRASH("Failed with memory allocation");
-    return ret;
+static inline void pointersAlloc(void)
+{
+    pointers = xcalloc(1, sizeof(struct system));
+    pointers->sysinfo = xcalloc(1, sizeof(struct sysinfo));
+    pointers->utsname = xcalloc(1, sizeof(struct utsname));
+    pointers->distro = xcalloc(1, sizeof(struct distro));
+    pointers->passwd = xcalloc(1, sizeof(struct passwd));
+    passwd_tmp_pointer = pointers->passwd;
 }
 
-/* Allocate "global" pointer structure */
-pointers_t createPointers(void) {
-    pointers_t ret;
-    ret.system = xmalloc(sizeof(struct sysinfo));
-    ret.username = xmalloc(sizeof(struct thr_usernameInput));
-    ret.kernel = xmalloc(sizeof(struct utsname));
-    ret.os = xmalloc(sizeof(os_t));
-    return ret;
+static inline void pointersFree(void)
+{
+    free(pointers->sysinfo);
+    free(pointers->utsname);
+    free(pointers->distro);
+    free(passwd_tmp_pointer);
+    free(pointers);
 }
 
-/* Free "global" pointer structure */
-void freePointers(pointers_t ptrs) {
-    free(ptrs.system);
-    free(ptrs.username);
-    free(ptrs.os);
-    free(ptrs.kernel);
+static inline void makeThread(pthread_t *thread, void *(*function)(void*), void *input)
+{
+    if(pthread_create(thread, NULL, function, input))
+        ABORT("minfetch: failed creating thread: %s\n", strerror(errno));
 }
 
-/* Call sysinfo() function */
-void* getSysInfo(void* arg) {
-    sysinfo(arg);
+static void *getKernel(void *arg)
+{
+    uname((struct utsname*)arg);
     return arg;
 }
 
-/* Get OS from /etc/os-release */
-void* getOs(void* arg) {
-    FILE* fp;
-    os_t* tmp = arg; /* Create this tmp pointer to interpret as struct */
-    char* buf = xcalloc(64, sizeof(char)); /* Line string */
+static void *getOs(void *arg)
+{
+    FILE *fp;
+    char *buf = xcalloc(64, sizeof(char));
 
     if((fp = fopen("/etc/os-release", "r")) == NULL)
-        ERR_NOTICE("Failed opening /etc/os-release");
+        ABORT("minfetch: failed opening /etc/os-release: %s\n", strerror(errno));
 
-    while(buf[0] != 'P') /* Go down the lines until first character is a 'P' */
+    while(buf[0] != 'P')
         buf = fgets(buf, 64, fp);
-    sscanf(buf, "PRETTY_NAME=\"%[^\"]", tmp->name); /* Get distro name */
+    sscanf(buf, "PRETTY_NAME=\"%[^\"]", ((struct distro*)arg)->name);
     free(buf); fclose(fp);
 
     return arg;
 }
 
-#ifdef __linux__
-/* Compare OS string to linux distros and assign one */
-void getDistro(os_t* input, char* arg) {
-    if(!strcmp(arg, "Arch Linux"))
-        input->distro = ARCH_LINUX;
-    else if(!strcmp(arg, "Gentoo Linux"))
-        input->distro = GENTOO_LINUX;
-    else if(!strcmp(arg, "Debian Linux"))
-        input->distro = DEBIAN_LINUX;
-    else
-        input->distro = GENERIC;
+static void *getUsername(void *arg)
+{
+    pointers->passwd = getpwuid(pointers->uid);
+    return arg;
 }
-#endif /* __linux__ */
 
-/* Convert uptime in seconds to human-readable units */
-uptime_t makeUptime(long uptime) {
-    uptime_t ret;
+static void *getAvailableRam(void *arg)
+{
+    FILE *fp;
+    char *buf = xcalloc(BUFSIZ, sizeof(char));
+    char *buffer = xcalloc(BUFSIZ, sizeof(char));
+
+    if((fp = fopen("/proc/meminfo", "r")) == NULL)
+        ABORT("minfetch: failed opening /proc/meminfo: %s\n", strerror(errno));
+
+    while(buf[3] != 'A')
+        buf = fgets(buf, BUFSIZ, fp);
+    sscanf(buf, "MemAvailable: %[^k]", buffer);
+    ((struct system*)arg)->availableram = atol(buffer);
+    free(buf); free(buffer); fclose(fp);
+
+    return arg;
+}
+
+static void *getSysInfo(void *arg)
+{
+    sysinfo(arg);
+    return arg;
+}
+
+static void *getTerminal(void *arg)
+{
+    char *buf = xcalloc(128, sizeof(char));
+    void *tmp = buf;
+
+    if((buf = getenv("TERMINAL")) == NULL)
+        buf = getenv("TERM");
+    arg = strcpy(arg, buf);
+    free(tmp);
+
+    return arg;
+}
+
+static void *getEditor(void *arg)
+{
+    char *buf = xcalloc(128, sizeof(char));
+    void *tmp = buf;
+
+    if((buf = getenv("VISUAL")) == NULL)
+        buf = getenv("EDITOR");
+    arg = strcpy(arg, buf);
+    free(tmp);
+
+    return arg;
+}
+
+struct uptime makeUptime(long uptime)
+{
+    struct uptime ret;
     ret.seconds = uptime;
     ret.minutes = (uptime / 60) % 60;
     ret.hours = uptime / 3600;
@@ -146,179 +183,103 @@ uptime_t makeUptime(long uptime) {
     return ret;
 }
 
-/* Transform uptime into string */
-void getUptime(char* string, struct sysinfo* arg) {
-    uptime_t uptime = makeUptime(arg->uptime);
-    if (arg->uptime < 60) /* display time just in seconds */
-        snprintf(string, BUFSIZ, "%lds", arg->uptime);
-    else if (arg->uptime < 3600) /* display time in minutes */
-        snprintf(string, BUFSIZ, "%ldm", uptime.minutes);
-    else if (uptime.days == 0) /* display time in hours */
-        snprintf(string, BUFSIZ, "%ldh %ldm",
+static void getUptime(char *string, struct sysinfo *arg)
+{
+    struct uptime uptime = makeUptime(arg->uptime);
+    if (arg->uptime < 60)
+        snprintf(string, DEFAULT_STRING_SIZE, "%lds", arg->uptime);
+    else if (arg->uptime < 3600)
+        snprintf(string, DEFAULT_STRING_SIZE, "%ldm", uptime.minutes);
+    else if (uptime.days == 0)
+        snprintf(string, DEFAULT_STRING_SIZE, "%ldh %ldm",
                  uptime.hours, uptime.minutes);
-    else /* display time in days */
-        snprintf(string, BUFSIZ, "%dd %ldh %ldm",
+    else
+        snprintf(string, DEFAULT_STRING_SIZE, "%dd %ldh %ldm",
                  uptime.days, uptime.hours, uptime.minutes);
 }
 
-/* Get username info from main process UID */
-void* getUsername(void* arg) {
-    struct thr_usernameInput* buf = arg; /* tmp pointer to use as struct */
-    buf->username = getpwuid(buf->uid);
-    return arg;
+static void getDistro(struct distro *input, char *arg)
+{
+    if(!strcmp(arg, "Arch Linux"))
+        input->type = ARCH_LINUX;
+    else if(!strcmp(arg, "Gentoo Linux"))
+        input->type = GENTOO_LINUX;
+    else if(!strcmp(arg, "Debian Linux"))
+        input->type = DEBIAN_LINUX;
+    else
+        input->type = GENERIC;
 }
 
-/* Get kernel information from uname() function */
-void* getKernel(void* arg) {
-    uname((struct utsname*)arg);
-    return arg;
-}
+static void allocateLogo(struct distro *distro)
+{
+    switch(distro->type) {
+    case ARCH_LINUX: {
+        char *LOGO[DEFAULT_STRING_SIZE] = ARCH_LOGO;
+        memcpy(distro->logo, LOGO, sizeof(LOGO));
+        strcpy(distro->color, "\x1b[1;96m");
+    } break;
 
-/* Get terminal information from enviroment variables */
-void* getTerminal(void* arg) {
-    char* buf = xcalloc(128, sizeof(char));
-    void* tmp = buf; /* temporary pointer to free later */
+    case GENTOO_LINUX: {
+        char *LOGO[DEFAULT_STRING_SIZE] = GENTOO_LOGO;
+        memcpy(distro->logo, LOGO, sizeof(LOGO));
+        strcpy(distro->color, "\x1b[1;35m");
+    } break;
 
-    if((buf = getenv("TERMINAL")) == NULL) /* get visual terminal, else use */
-        buf = getenv("TERM");              /* TERM enviroment variable */
-    arg = strcpy(arg, buf);
-    free(tmp);
+    case DEBIAN_LINUX: {
+        char *LOGO[DEFAULT_STRING_SIZE] = DEBIAN_LOGO;
+        memcpy(distro->logo, LOGO, sizeof(LOGO));
+        strcpy(distro->color, "\x1b[1;31m");
+    } break;
 
-    return arg;
-}
-
-/* Get available use memory from /proc/meminfo */
-void* getAvailableRam(void* arg) {
-    FILE* fp;
-    char* buf = xcalloc(BUFSIZ, sizeof(char));
-    char* buffer = xcalloc(BUFSIZ, sizeof(char)); /* active mem string */
-
-    if((fp = fopen("/proc/meminfo", "r")) == NULL)
-        ERR_NOTICE("Failed opening /proc/meminfo");
-
-    while(buf[3] != 'A') /* Go down the lines until fourth charater is 'A' */
-        buf = fgets(buf, BUFSIZ, fp);
-    sscanf(buf, "MemAvailable: %[^k]", buffer); /* Get active mem */
-    pointers_t* ret = arg; /* tmp pointer to use as struct */
-    ret->availableram = atol(buffer); /* transform string memory into long int */
-    free(buf); free(buffer); fclose(fp);
-
-    return arg;
-}
-
-/* Get text editor */
-void* getEditor(void* arg) {
-    char* buf = xcalloc(128, sizeof(char));
-    void* tmp = buf; /* temporary pointer to free later */
-
-    if((buf = getenv("VISUAL")) == NULL)   /* get visual editor, else use */
-        buf = getenv("EDITOR");            /* EDITOR enviroment variable */
-    arg = strcpy(arg, buf);
-    free(tmp);
-
-    return arg;
-}
-
-/* Allocate logo struct with appropriate information */
-void allocateLogo(os_t* os) {
-    switch(os->distro) {
-        case ARCH_LINUX: {
-            for(int i = 0; i < 10; i++) {
-                os->logo[i] = ARCH_L[i];
-            }
-            strcpy(os->color, "\x1b[1;96m");
-        } break;
-
-        case GENTOO_LINUX: {
-            for(int i = 0; i < 10; i++) {
-                os->logo[i] = GENTOO_L[i];
-            }
-            strcpy(os->color, "\x1b[1;35m");
-        } break;
-
-        case DEBIAN_LINUX: {
-            for(int i = 0; i < 10; i++) {
-                os->logo[i] = DEBIAN_L[i];
-            }
-            strcpy(os->color, "\x1b[1;31m");
-        } break;
-
-        default: {
-            for(int i = 0; i < 10; i++) {
-                os->logo[i] = GENERIC_L[i];
-            }
-            strcpy(os->color, "\x1b[1;32m");
-        }
+    default:
+        char *LOGO[DEFAULT_STRING_SIZE] = GENERIC_LOGO;
+        memcpy(distro->logo, LOGO, sizeof(LOGO));
+        strcpy(distro->color, "\x1b[1;32m");
     }
 }
 
-int main(void) {
-    pthread_t threads[4] = {0};
-    pointers_t pointers = createPointers(); /* allocate global structure */
-
-    pointers.username->uid = getuid(); /* get main proccess UID */
-    if(pthread_create(&threads[0], NULL, &getKernel, pointers.kernel)) {
-        ERR_CRASH("Failed creating thread[0]");
-        freePointers(pointers);
-    } if(pthread_create(&threads[1], NULL, &getOs, pointers.os)) {
-        ERR_CRASH("Failed creating thread[1]");
-        freePointers(pointers);
-    }
-    if(pthread_create(&threads[2], NULL, &getUsername, pointers.username)) {
-        ERR_CRASH("Failed creating thread[2]");
-        freePointers(pointers);
-    }
-    pthread_join(threads[0], NULL);
-    if(pthread_create(&threads[0], NULL, &getAvailableRam, &pointers)) {
-        ERR_CRASH("Failed creating thread[3]");
-        freePointers(pointers);
-    }
-    pthread_join(threads[1], NULL);
-    if(pthread_create(&threads[1], NULL, &getSysInfo, pointers.system)) {
-        ERR_CRASH("Failed creating thread[4]");
-        freePointers(pointers);
-    }
+static inline void pointersAssign(void)
+{
+    pointers->uid = getuid();
+    pthread_t threads[5] = {0};
+    makeThread(&threads[0], &getKernel, pointers->utsname);
+    makeThread(&threads[1], &getOs, pointers->distro);
+    makeThread(&threads[2], &getUsername, pointers->passwd);
+    makeThread(&threads[3], &getAvailableRam, pointers);
+    makeThread(&threads[4], &getTerminal, pointers->terminal);
     pthread_join(threads[2], NULL);
-    if(pthread_create(&threads[2], NULL, &getTerminal, pointers.terminal)) {
-        ERR_CRASH("Failed creating thread[5]");
-        freePointers(pointers);
-    } if(pthread_create(&threads[3], NULL, &getEditor, pointers.editor)) {
-        ERR_CRASH("Failed creating thread[5]");
-        freePointers(pointers);
-    }
-    getUptime(pointers.uptime, pointers.system);
-    getDistro(pointers.os, pointers.os->name);
-    allocateLogo(pointers.os);
-
-    char* colors = "\x1b[1;31m#####\x1b[1;32m#####\x1b[1;33m#####\x1b[1;34m#####\x1b[1;35m#####\
-\x1b[1;36m#####\x1b[0m";
-
-    /* Print out info: */
-    printf("%s%s     %s%s@%s%s\n",
-            pointers.os->logo[0], pointers.os->color, pointers.username->username->pw_name,
-            NOCOLOR, pointers.os->color, pointers.kernel->nodename);
-    printf("%s\n", pointers.os->logo[1]);
-    printf("%s%sDistribution%s:   %s\n", pointers.os->logo[2], pointers.os->color, NOCOLOR,
-            pointers.os->name);
-    printf("%s%sOperat. System%s: %s %s\n", pointers.os->logo[3], pointers.os->color, NOCOLOR,
-            pointers.kernel->sysname, pointers.kernel->release);
-    pthread_join(threads[0], NULL);
-    pthread_join(threads[1], NULL);
-    printf("%s%sSystem Memory%s:  %ldMiB / %luMiB\n", pointers.os->logo[4], pointers.os->color,
-            NOCOLOR, ((pointers.system->totalram / 1024) - (pointers.availableram +
-            (pointers.system->bufferram / 1024))) / 1024, pointers.system->totalram / 1024 / 1024);
-    printf("%s%sCurrent Uptime%s: %s\n", pointers.os->logo[5], pointers.os->color, NOCOLOR,
-            pointers.uptime);
-    printf("%s%sShell%s:          %s\n", pointers.os->logo[6], pointers.os->color, NOCOLOR,
-            pointers.username->username->pw_shell);
-    pthread_join(threads[2], NULL);
-    printf("%s%sTerminal%s:       %s\n", pointers.os->logo[7], pointers.os->color, NOCOLOR,
-            pointers.terminal);
+    makeThread(&threads[2], &getSysInfo, pointers->sysinfo);
     pthread_join(threads[3], NULL);
-    printf("%s%sEditor%s:         %s\n", pointers.os->logo[8], pointers.os->color, NOCOLOR,
-            pointers.editor);
-    printf("%s%s\n", pointers.os->logo[9], colors);
+    makeThread(&threads[3], &getEditor, pointers->editor);
+    pthread_join(threads[4], NULL);
+    getUptime(pointers->uptime, pointers->sysinfo);
+    pthread_join(threads[1], NULL);
+    getDistro(pointers->distro, pointers->distro->name);
+    allocateLogo(pointers->distro);
+    pthread_join(threads[0], NULL);
+    pthread_join(threads[2], NULL);
+    pthread_join(threads[3], NULL);
+}
 
-    freePointers(pointers);
+int main(void)
+{
+    pointersAlloc();
+    pointersAssign();
+
+    printf("%s%s        %s%s@%s%s\n", pointers->distro->logo[0], pointers->distro->color,
+            pointers->passwd->pw_name, NOCOLOR, pointers->distro->color, pointers->utsname->nodename);
+    printf("%s\n", pointers->distro->logo[1]);
+    printf("%s%sDistribution%s:   %s\n", HEADER(2), pointers->distro->name);
+    printf("%s%sOperat. System%s: %s %s\n", HEADER(3), pointers->utsname->sysname, pointers->utsname->release);
+    printf("%s%sSystem Memory%s:  %ldMiB / %luMiB\n", HEADER(4), ((pointers->sysinfo->totalram / 1024) -
+           (pointers->availableram + (pointers->sysinfo->bufferram / 1024))) / 1024, pointers->sysinfo->
+           totalram / 1024 / 1024);
+    printf("%s%sCurrent Uptime%s: %s\n", HEADER(5), pointers->uptime);
+    printf("%s%sShell%s:          %s\n", HEADER(6), pointers->passwd->pw_shell);
+    printf("%s%sTerminal%s:       %s\n", HEADER(7), pointers->terminal);
+    printf("%s%sEditor%s:         %s\n", HEADER(8), pointers->editor);
+    printf("%s%s\n", pointers->distro->logo[9], COLORS);
+
+    pointersFree();
     return EXIT_SUCCESS;
 }

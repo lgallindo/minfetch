@@ -1,9 +1,9 @@
 CC=gcc
-CFLAGS=-Wall -Wextra -std=c99 -Wpedantic -g -O3 -Wno-unused-result -Wno-discarded-qualifiers
-IFLAGS=-Wall -Wextra -std=c99 -Wpedantic -O3 -Wno-unused-result -Wno-discarded-qualifiers
+CFLAGS=-Wall -Wextra -std=c99 -g -O3
+IFLAGS=-Wall -Wextra -std=c99 -O3
 INSTALLDIR=~/.local/bin
 BINARY=minfetch
-SRC=./minfetch.c
+SRC=./refactor.c
 
 all: $(BINARY)
 
